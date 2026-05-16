@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Free Earn - Telegram Mini App</title>
+
+  <!-- Telegram WebApp -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- TailwindCSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root{
+      --tg-bg:#0f172a;
+      --tg-card:#111827;
+      --tg-primary:#22c55e;
+      --tg-secondary:#3b82f6;
+      --tg-text:#ffffff;
+      --tg-muted:#94a3b8;
+    }
+
+    body{
+      margin:0;
+      background:linear-gradient(180deg,#020617,#0f172a,#111827);
+      color:var(--tg-text);
+      font-family:Inter,sans-serif;
+      overflow-x:hidden;
+    }
+
+    .glass{
+      background:rgba(255,255,255,.06);
+      backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,.1);
+    }
+
+    .nav-btn.active{
+      color:#22c55e;
+      transform:translateY(-2px);
+    }
+
+    .ad-box{
+      background:linear-gradient(135deg,#1e293b,#334155);
+      border:2px dashed rgba(255,255,255,.2);
+      min-height:90px;
+    }
+
+    .wheel-wrap{
+      position:relative;
+      width:320px;
+      height:320px;
+      margin:auto;
+    }
+
+    #wheel{
+      transition:transform 5s cubic-bezier(.17,.67,.15,.99);
+    }
+
+    .pointer{
+      position:absolute;
+      top:-10px;
+      left:50%;
+      transform:translateX(-50%);
+      width:0;
+      height:0;
+      border-left:18px solid transparent;
+      border-right:18px solid transparent;
+      border-top:35px solid #facc15;
+      z-index:10;
+    }
+
+    .modal-bg{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.7);
+      z-index:999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .spin-glow{
+      animation:pulse 1s infinite;
+    }
+
+    @keyframes pulse{
+      0%{box-shadow:0 0 0 rgba(34,197,94,.3);}
+      50%{box-shadow:0 0 40px rgba(34,197,94,.8);}
+      100%{box-shadow:0 0 0 rgba(34,197,94,.3);}
+    }
+
+    .page{
+      display:none;
+      padding-bottom:120px;
+    }
+
+    .page.active{
+      display:block;
+    }
+
+    .reward-day.active{
+      background:#22c55e;
+      color:#fff;
+      transform:scale(1.05);
+    }
+
+    .reward-day.claimed{
+      background:#3b82f6;
+    }
+
+    .custom-scroll::-webkit-scrollbar{
+      width:0;
+    }
+  </style>
+</head>
+<body class="custom-scroll">
+
+<div id="app" class="max-w-md mx-auto min-h-screen relative">
+
+  <!-- TOPBAR -->
+  <div class="sticky top-0 z-50 glass px-4 py-3 flex items-center justify-between">
+    <button onclick="openProfile()" class="w-11 h-11 rounded-full bg-slate-700 flex items-center justify-center text-xl">
+      👤
+    </button>
+
+    <div class="text-center">
+      <div class="text-xs text-slate-400">Balance</div>
+      <div id="balanceText" class="font-bold text-xl text-yellow-400">0 Coins</div>
+    </div>
+
+    <div class="w-11 h-11 rounded-full bg-green-500 flex items-center justify-center text-xl">
+      💰
+    </div>
+  </div>
+
+  <!-- HOME PAGE -->
+  <div id="homePage" class="page active p-4 space-y-4">
+
+    <div class="ad-box rounded-3xl flex items-center justify-center text-slate-300 font-bold">
+      Adsterra Native Banner - 1
+    </div>
+
+    <!-- SPIN -->
+    <div class="glass rounded-3xl p-5 text-center">
+      <h2 class="text-2xl font-bold mb-4 text-yellow-400">Lucky Spin</h2>
+
+      <div class="wheel-wrap">
+        <div class="pointer"></div>
+        <canvas id="wheel" width="320" height="320"></canvas>
+      </div>
+
+      <div class="mt-5 space-y-3">
+        <button id="spinBtn"
+          class="w-full py-4 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-700 font-bold text-lg spin-glow">
+          SPIN
+        </button>
+
+        <button id="claimBtn"
+          class="hidden w-full py-4 rounded-2xl bg-yellow-500 text-black font-bold">
+          CLAIM REWARD
+        </button>
+
+        <div class="text-sm text-slate-400">
+          Spins Left:
+          <span id="spinLeft">21</span>/21
+        </div>
+      </div>
+    </div>
+
+    <div class="ad-box rounded-3xl flex items-center justify-center text-slate-300 font-bold">
+      Adsterra Native Banner - 1
+    </div>
+
+    <!-- DAILY -->
+    <div class="glass rounded-3xl p-5">
+      <h2 class="text-2xl font-bold mb-4 text-cyan-400">
+        Daily Reward
+      </h2>
+
+      <div id="dailyGrid" class="grid grid-cols-4 gap-3"></div>
+
+      <button onclick="claimDailyReward()"
+        class="mt-5 w-full py-4 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 font-bold">
+        Claim Daily Reward
+      </button>
+    </div>
+
+    <div class="ad-box rounded-3xl flex items-center justify-center text-slate-300 font-bold">
+      Adsterra Native Banner - 1
+    </div>
+
+    <!-- AUTO SPIN -->
+    <div class="glass rounded-3xl p-5 text-center">
+      <h2 class="text-2xl font-bold mb-4 text-pink-400">
+        Auto Spin Wheel
+      </h2>
+
+      <button onclick="startAutoSpin()"
+        class="w-full py-4 rounded-2xl bg-gradient-to-r from-pink-500 to-red-500 font-bold">
+        START AUTO SPIN
+      </button>
+
+      <button onclick="stopAutoSpin()"
+        class="w-full mt-3 py-4 rounded-2xl bg-slate-700 font-bold">
+        STOP
+      </button>
+    </div>
+
+    <div class="ad-box rounded-3xl flex items-center justify-center text-slate-300 font-bold">
+      Adsterra Native Banner - 2
+    </div>
+
+  </div>
+
+  <!-- TASKS -->
+  <div id="tasksPage" class="page p-4 space-y-4">
+
+    <div class="ad-box rounded-3xl flex items-center justify-center text-slate-300 font-bold">
+      Adsterra Native Banner - 1
+    </div>
+
+    <div id="taskList" class="space-y-4"></div>
+
+    <div class="ad-box rounded-3xl flex items-center justify-center text-slate-300 font-bold">
+      Adsterra Native Banner - 2
+    </div>
+
+  </div>
+
+  <!-- REFERRAL -->
+  <div id="referralPage" class="page p-4 space-y-4">
+
+    <div class="ad-box rounded-3xl flex items-center justify-center text-slate-300 font-bold">
+      Adsterra Native Banner - 1
+    </div>
+
+    <div class="glass rounded-3xl p-5 space-y-4">
+      <h2 class="text-2xl font-bold text-green-400">
+        Referral System
+      </h2>
+
+      <div class="bg-slate-800 p-4 rounded-2xl break-all">
+        <div class="text-xs text-slate-400 mb-2">Referral Link</div>
+        <div id="refLink"></div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-slate-800 rounded-2xl p-4 text-center">
+          <div class="text-sm text-slate-400">Users</div>
+          <div id="refUsers" class="text-2xl font-bold">0</div>
+        </div>
+
+        <div class="bg-slate-800 rounded-2xl p-4 text-center">
+          <div class="text-sm text-slate-400">Earned</div>
+          <div id="refCoins" class="text-2xl font-bold text-yellow-400">0</div>
+        </div>
+      </div>
+
+      <div class="text-sm text-slate-300 leading-7">
+        Invite friends and earn <span class="text-yellow-400">400 Coins</span>
+        when they complete first task or spin.
+      </div>
+    </div>
+
+    <div class="ad-box rounded-3xl flex items-center justify-center text-slate-300 font-bold">
+      Adsterra Native Banner - 2
+    </div>
+
+  </div>
+
+  <!-- WALLET -->
+  <div id="walletPage" class="page p-4 space-y-4">
+
+    <div class="ad-box rounded-3xl flex items-center justify-center text-slate-300 font-bold">
+      Adsterra Native Banner - 1
+    </div>
+
+    <div class="glass rounded-3xl p-5">
+      <h2 class="text-2xl font-bold text-yellow-400">
+        Wallet
+      </h2>
+
+      <div class="mt-4 bg-slate-800 rounded-2xl p-4 text-center">
+        <div class="text-slate-400 text-sm">Current Balance</div>
+        <div id="walletBalance" class="text-3xl font-bold text-green-400">
+          0 Coins
+        </div>
+      </div>
+    </div>
+
+    <!-- Withdraw -->
+    <div class="glass rounded-3xl p-5">
+      <h2 class="text-xl font-bold mb-4 text-red-400">
+        Withdraw
+      </h2>
+
+      <select id="withdrawMethod"
+        class="w-full p-4 rounded-2xl bg-slate-800 outline-none">
+        <option>bKash</option>
+        <option>Nagad</option>
+        <option>USDT TRC20</option>
+      </select>
+
+      <input id="withdrawAddress"
+        placeholder="Enter Number / Address"
+        class="w-full mt-4 p-4 rounded-2xl bg-slate-800 outline-none"/>
+
+      <button onclick="withdrawRequest()"
+        class="w-full mt-4 py-4 rounded-2xl bg-gradient-to-r from-red-500 to-pink-500 font-bold">
+        Withdraw Now
+      </button>
+
+      <div class="mt-4 text-sm text-slate-400 leading-7">
+        Minimum: 10,000,000 Coins<br/>
+        Need: 7 referrals + 10 ads completed
+      </div>
+    </div>
+
+    <!-- Exchange -->
+    <div class="glass rounded-3xl p-5">
+      <h2 class="text-xl font-bold mb-4 text-cyan-400">
+        Exchange Coins
+      </h2>
+
+      <div class="text-sm mb-4 text-slate-300">
+        10,000 Coins = 5 BDT
+      </div>
+
+      <input id="exchangeCoins"
+        type="number"
+        placeholder="Enter Coins"
+        class="w-full p-4 rounded-2xl bg-slate-800 outline-none"/>
+
+      <button onclick="exchangeCoins()"
+        class="w-full mt-4 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 font-bold">
+        Exchange
+      </button>
+    </div>
+
+    <div class="ad-box rounded-3xl flex items-center justify-center text-slate-300 font-bold">
+      Adsterra Native Banner - 2
+    </div>
+
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="fixed bottom-0 left-0 right-0 max-w-md mx-auto glass border-t border-slate-700 z-50">
+    <div class="grid grid-cols-4 py-2">
+
+      <button class="nav-btn active flex flex-col items-center py-2"
+        onclick="navigate('homePage',this)">
+        🏠
+        <span class="text-xs">Home</span>
+      </button>
+
+      <button class="nav-btn flex flex-col items-center py-2"
+        onclick="navigate('tasksPage',this)">
+        📋
+        <span class="text-xs">Tasks</span>
+      </button>
+
+      <button class="nav-btn flex flex-col items-center py-2"
+        onclick="navigate('referralPage',this)">
+        👥
+        <span class="text-xs">Referral</span>
+      </button>
+
+      <button class="nav-btn flex flex-col items-center py-2"
+        onclick="navigate('walletPage',this)">
+        💳
+        <span class="text-xs">Wallet</span>
+      </button>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL -->
+<div id="modalContainer"></div>
+
+<script>
+
+  // =========================
+  // TELEGRAM INIT
+  // =========================
+  const tg = window.Telegram?.WebApp;
+
+  if(tg){
+    tg.ready();
+    tg.expand();
+  }
+
+  // =========================
+  // STORAGE
+  // =========================
+  let appData = JSON.parse(localStorage.getItem("freeEarnData")) || {
+    balance:0,
+    totalEarned:0,
+    spinsUsed:0,
+    tasksDone:0,
+    referrals:0,
+    referralEarned:0,
+    joinDate:new Date().toLocaleDateString(),
+    dailyClaim:null,
+    dailyDay:1,
+    spinHistory:[]
+  };
+
+  function saveData(){
+    localStorage.setItem("freeEarnData",JSON.stringify(appData));
+    updateUI();
+  }
+
+  // =========================
+  // UI UPDATE
+  // =========================
+  function updateUI(){
+    balanceText.innerText = appData.balance + " Coins";
+    walletBalance.innerText = appData.balance + " Coins";
+    spinLeft.innerText = 21 - appData.spinsUsed;
+
+    refUsers.innerText = appData.referrals;
+    refCoins.innerText = appData.referralEarned;
+
+    let uid = tg?.initDataUnsafe?.user?.id || "demo123";
+    refLink.innerText =
+      "https://t.me/your_bot?start=" + uid;
+  }
+
+  updateUI();
+
+  // =========================
+  // PROFILE
+  // =========================
+  function openProfile(){
+    let uid = tg?.initDataUnsafe?.user?.id || "Demo User";
+
+    showModal(`
+      <div class="text-center">
+        <div class="text-5xl mb-3">👤</div>
+
+        <div class="text-xl font-bold">User Profile</div>
+
+        <div class="mt-4 text-left space-y-2">
+          <div>User ID: ${uid}</div>
+          <div>Join Date: ${appData.joinDate}</div>
+          <div>Total Earned: ${appData.totalEarned} Coins</div>
+        </div>
+      </div>
+    `);
+  }
+
+  // =========================
+  // NAVIGATION
+  // =========================
+  function navigate(page,el){
+
+    document.querySelectorAll(".page")
+      .forEach(p=>p.classList.remove("active"));
+
+    document.getElementById(page)
+      .classList.add("active");
+
+    document.querySelectorAll(".nav-btn")
+      .forEach(n=>n.classList.remove("active"));
+
+    el.classList.add("active");
+  }
+
+  // =========================
+  // MODAL
+  // =========================
+  function showModal(content){
+
+    modalContainer.innerHTML = `
+      <div class="modal-bg">
+
+        <div class="glass p-6 rounded-3xl w-[90%] max-w-sm relative">
+
+          <button onclick="closeModal()"
+            class="absolute top-3 right-3 text-xl">
+            ✖
+          </button>
+
+          ${content}
+
+        </div>
+
+      </div>
+    `;
+  }
+
+  function closeModal(){
+    modalContainer.innerHTML = "";
+  }
+
+  // =========================
+  // AD SYSTEM
+  // =========================
+  function playAd(type="A",seconds=10){
+
+    return new Promise(resolve=>{
+
+      let left = seconds;
+
+      showModal(`
+        <div class="text-center">
+
+          <div class="text-5xl mb-4">📺</div>
+
+          <div class="text-2xl font-bold mb-2">
+            Adsterra-${type}
+          </div>
+
+          <div class="text-slate-300">
+            Watching Ad...
+          </div>
+
+          <div id="adTimer"
+            class="text-5xl font-bold text-green-400 mt-5">
+            ${left}
+          </div>
+
+        </div>
+      `);
+
+      const timer = setInterval(()=>{
+
+        left--;
+
+        const t = document.getElementById("adTimer");
+
+        if(t) t.innerText = left;
+
+        if(left<=0){
+          clearInterval(timer);
+          closeModal();
+          resolve();
+        }
+
+      },1000);
+
+    });
+  }
+
+  // =========================
+  // WHEEL
+  // =========================
+  const canvas = document.getElementById("wheel");
+  const ctx = canvas.getContext("2d");
+
+  const segments = [
+    "50","70","90","100",
+    "120","140","150","Try"
+  ];
+
+  const colors = [
+    "#22c55e","#06b6d4","#3b82f6",
+    "#8b5cf6","#ec4899","#ef4444",
+    "#f59e0b","#475569"
+  ];
+
+  let rotation = 0;
+  let spinning = false;
+  let pendingReward = 0;
+
+  function drawWheel(){
+
+    const size = 320;
+    const center = size/2;
+    const arc = Math.PI*2 / segments.length;
+
+    ctx.clearRect(0,0,size,size);
+
+    segments.forEach((seg,i)=>{
+
+      ctx.beginPath();
+      ctx.moveTo(center,center);
+
+      ctx.arc(
+        center,
+        center,
+        center,
+        arc*i,
+        arc*(i+1)
+      );
+
+      ctx.fillStyle = colors[i];
+      ctx.fill();
+
+      ctx.save();
+
+      ctx.translate(center,center);
+      ctx.rotate(arc*i + arc/2);
+
+      ctx.fillStyle="#fff";
+      ctx.font="bold 18px sans-serif";
+      ctx.textAlign="right";
+
+      ctx.fillText(seg,130,10);
+
+      ctx.restore();
+
+    });
+
+  }
+
+  drawWheel();
+
+  // =========================
+  // SPIN
+  // =========================
+  spinBtn.onclick = async ()=>{
+
+    if(spinning) return;
+
+    if(appData.spinsUsed >= 21){
+      alert("Spin limit reached");
+      return;
+    }
+
+    spinning = true;
+
+    if(appData.spinsUsed > 0){
+      await playAd("A",10);
+    }
+
+    spinWheel();
+  };
+
+  function spinWheel(){
+
+    const rewards = [50,70,90,100];
+    const reward =
+      rewards[Math.floor(Math.random()*rewards.length)];
+
+    pendingReward = reward;
+
+    const spins = 3600 + Math.random()*360;
+
+    rotation += spins;
+
+    canvas.style.transform = `rotate(${rotation}deg)`;
+
+    setTimeout(()=>{
+
+      claimBtn.classList.remove("hidden");
+
+      spinning = false;
+
+    },5000);
+
+  }
+
+  claimBtn.onclick = async ()=>{
+
+    await playAd("B",10);
+
+    appData.balance += pendingReward;
+    appData.totalEarned += pendingReward;
+    appData.spinsUsed++;
+
+    saveData();
+
+    claimBtn.classList.add("hidden");
+
+    alert("You received "+pendingReward+" coins!");
+
+  };
+
+  // =========================
+  // DAILY
+  // =========================
+  const rewards = [10,20,30,50,70,90,100];
+
+  function renderDaily(){
+
+    dailyGrid.innerHTML="";
+
+    rewards.forEach((r,i)=>{
+
+      let active = i+1 === appData.dailyDay;
+
+      dailyGrid.innerHTML += `
+        <div class="
+          reward-day
+          ${active?'active':''}
+          rounded-2xl
+          p-3
+          text-center
+          bg-slate-800
+        ">
+          <div class="text-sm">Day ${i+1}</div>
+          <div class="font-bold">${r}</div>
+        </div>
+      `;
+    });
+
+  }
+
+  renderDaily();
+
+  async function claimDailyReward(){
+
+    let today = new Date().toISOString().split("T")[0];
+
+    if(appData.dailyClaim === today){
+      alert("Already claimed today");
+      return;
+    }
+
+    await playAd("B",10);
+
+    let reward = rewards[appData.dailyDay-1];
+
+    appData.balance += reward;
+    appData.totalEarned += reward;
+    appData.dailyClaim = today;
+
+    appData.dailyDay++;
+
+    if(appData.dailyDay > 7){
+      appData.dailyDay = 1;
+    }
+
+    saveData();
+    renderDaily();
+
+    alert("Daily reward claimed!");
+  }
+
+  // =========================
+  // AUTO SPIN
+  // =========================
+  let autoSpin = false;
+
+  async function startAutoSpin(){
+
+    if(autoSpin) return;
+
+    autoSpin = true;
+
+    while(autoSpin){
+
+      if(appData.spinsUsed >= 21){
+        autoSpin = false;
+        break;
+      }
+
+      await playAd("A",15);
+      await playAd("A",15);
+
+      let reward =
+        [50,70,90,100][Math.floor(Math.random()*4)];
+
+      appData.balance += reward;
+      appData.totalEarned += reward;
+      appData.spinsUsed++;
+
+      saveData();
+
+      spinWheel();
+
+      await new Promise(r=>setTimeout(r,6000));
+    }
+  }
+
+  function stopAutoSpin(){
+    autoSpin = false;
+  }
+
+  // =========================
+  // TASKS
+  // =========================
+  const tasks = [
+    {name:"Visit Website",reward:70,auto:false},
+    {name:"Watch Video",reward:90,auto:false},
+    {name:"Watch Add",reward:50,auto:false},
+    {name:"Auto Visit Website",reward:120,auto:true},
+    {name:"Auto Watch Video",reward:150,auto:true},
+    {name:"Auto Watch Add",reward:200,auto:true}
+  ];
+
+  function renderTasks(){
+
+    taskList.innerHTML="";
+
+    tasks.forEach((task,index)=>{
+
+      taskList.innerHTML += `
+        <div class="glass rounded-3xl p-5">
+
+          <div class="flex justify-between items-center">
+
+            <div>
+              <div class="font-bold text-lg">
+                ${task.name}
+              </div>
+
+              <div class="text-yellow-400">
+                +${task.reward} Coins
+              </div>
+            </div>
+
+            <button
+              onclick="startTask(${index})"
+              class="px-5 py-3 rounded-2xl
+              bg-gradient-to-r
+              from-green-500 to-emerald-700
+              font-bold">
+
+              ${task.auto?'START':'GO'}
+
+            </button>
+
+          </div>
+
+        </div>
+      `;
+    });
+
+  }
+
+  renderTasks();
+
+  async function startTask(index){
+
+    if(appData.tasksDone >= 20){
+      alert("Task limit reached");
+      return;
+    }
+
+    let task = tasks[index];
+
+    if(task.auto){
+
+      await playAd("A",15);
+      await playAd("A",15);
+
+    }else{
+
+      await playAd("B",20);
+
+    }
+
+    appData.balance += task.reward;
+    appData.totalEarned += task.reward;
+    appData.tasksDone++;
+
+    saveData();
+
+    alert(task.name + " Completed!");
+  }
+
+  // =========================
+  // WITHDRAW
+  // =========================
+  async function withdrawRequest(){
+
+    if(appData.balance < 10000000){
+      alert("Minimum balance required");
+      return;
+    }
+
+    if(appData.referrals < 7){
+      alert("Need minimum 7 referrals");
+      return;
+    }
+
+    for(let i=0;i<10;i++){
+
+      await playAd("A",15);
+      await playAd("A",15);
+
+    }
+
+    alert("Withdraw Request Submitted!");
+  }
+
+  // =========================
+  // EXCHANGE
+  // =========================
+  async function exchangeCoins(){
+
+    let coins =
+      Number(exchangeCoinsInput.value || 0);
+
+    if(coins <= 0){
+      alert("Enter coins");
+      return;
+    }
+
+    for(let i=0;i<5;i++){
+
+      await playAd("B",20);
+      await playAd("B",20);
+
+    }
+
+    let bdt = (coins / 10000) * 5;
+
+    alert("Converted to "+bdt+" BDT");
+  }
+
+  // =========================
+  // RESET 4H
+  // =========================
+  setInterval(()=>{
+
+    const last =
+      localStorage.getItem("lastReset");
+
+    const now = Date.now();
+
+    if(!last || now - Number(last) > 14400000){
+
+      appData.spinsUsed = 0;
+      appData.tasksDone = 0;
+
+      localStorage.setItem("lastReset",now);
+
+      saveData();
+
+    }
+
+  },5000);
+
+</script>
+
+</body>
+</html>
